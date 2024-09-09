@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced Permutation-based GA TSP Visualization</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; padding: 20px; }
+        #visualization { display: flex; width: 1200px; margin: 0 auto; }
+        #map-container { width: 800px; }
+        #map { width: 100%; height: 400px; border: 1px solid #ddd; }
+        #individual-list { width: 300px; margin-left: 20px; }
+        #info { margin-top: 20px; }
+        #generation-control { display: flex; align-items: center; justify-content: center; margin-top: 20px; }
+        #generation-slider { width: 300px; margin: 0 10px; }
+        .route { cursor: pointer; }
+        .route:hover { stroke-width: 3; }
+        .selected { stroke-width: 4; }
+        .individual-item { cursor: pointer; padding: 5px; margin: 5px 0; border: 1px solid #ddd; }
+        .individual-item:hover { background-color: #f0f0f0; }
+        .individual-item.selected { background-color: #e0e0e0; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>Enhanced Permutation-based GA: Traveling Salesman Problem</h1>
+    <div id="visualization">
+        <div id="map-container">
+            <svg id="map"></svg>
+            <div id="generation-control">
+                <button id="prev-gen">Previous</button>
+                <input type="range" id="generation-slider" min="0" value="0">
+                <button id="next-gen">Next</button>
+            </div>
+            <div id="info"></div>
+        </div>
+        <div id="individual-list">
+            <h3>Individuals</h3>
+            <div id="individual-items"></div>
+        </div>
+    </div>
+
+    <script>
+        // TSP and GA parameters
+        const CITIES = [[0, 0], [1, 5], [2, 2], [3, 8], [5, 5], [6, 1], [8, 3]];
+        const POPULATION_SIZE = 6;
+        const GENERATIONS = 20;
+        const MUTATION_RATE = 0.2;
+
+        // Colors for routes
+        const COLORS = ['#e41a1c', '#377eb8', '#4daf4a', '#984ea3', '#ff7f00', '#ffff33'];
+
+        // GA functions
+        function createIndividual() {
+            return shuffleArray([...Array(CITIES.length).keys()]);
+        }
+
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        function fitness(individual) {
+            let distance = 0;
+            for (let i = 0; i < individual.length; i++) {
+                const cityA = CITIES[individual[i]];
+                const cityB = CITIES[individual[(i + 1) % individual.length]];
+                distance += Math.sqrt((cityA[0] - cityB[0])**2 + (cityA[1] - cityB[1])**2);
+            }
+            return 1 / distance;
+        }
+
+        function crossover(parent1, parent2) {
+            const start = Math.floor(Math.random() * parent1.length);
+            const end = start + Math.floor(Math.random() * (parent1.length - start));
+            const slice = parent1.slice(start, end);
+            const child = new Array(parent1.length).fill(-1);
+            for (let i = start; i < end; i++) {
+                child[i] = parent1[i];
+            }
+            let j = 0;
+            for (let i = 0; i < parent2.length; i++) {
+                if (!slice.includes(parent2[i])) {
+                    while (j < child.length && child[j] !== -1) j++;
+                    if (j < child.length) child[j] = parent2[i];
+                }
+            }
+            return { child, start, end };
+        }
+
+        function mutate(individual) {
+            const mutated = [...individual];
+            if (Math.random() < MUTATION_RATE) {
+                const i = Math.floor(Math.random() * mutated.length);
+                const j = Math.floor(Math.random() * mutated.length);
+                [mutated[i], mutated[j]] = [mutated[j], mutated[i]];
+                return { mutated, swapped: [i, j] };
+            }
+            return { mutated, swapped: null };
+        }
+
+        function geneticAlgorithm() {
+            let population = Array.from({ length: POPULATION_SIZE }, createIndividual);
+            const generations = [population.map(route => ({ route }))];
+
+            for (let gen = 0; gen < GENERATIONS - 1; gen++) {
+                const newPopulation = [];
+                for (let i = 0; i < POPULATION_SIZE; i++) {
+                    const parent1 = selectParent(population);
+                    const parent2 = selectParent(population);
+                    const { child, start, end } = crossover(parent1, parent2);
+                    const { mutated, swapped } = mutate(child);
+                    newPopulation.push({
+                        route: mutated,
+                        parents: [parent1, parent2],
+                        crossover: { start, end },
+                        mutation: swapped
+                    });
+                }
+                population = newPopulation.map(ind => ind.route);
+                generations.push(newPopulation);
+            }
+
+            return generations;
+        }
+
+        function selectParent(population) {
+            const tournament = shuffleArray(population).slice(0, 3);
+            return tournament.reduce((best, current) => 
+                fitness(current) > fitness(best) ? current : best
+            );
+        }
+
+        // Visualization functions
+        function setupMap() {
+            const svg = document.getElementById('map');
+            svg.innerHTML = '';
+            const maxX = Math.max(...CITIES.map(city => city[0]));
+            const maxY = Math.max(...CITIES.map(city => city[1]));
+            const scale = Math.min(700 / maxX, 350 / maxY);
+            svg.setAttribute('viewBox', `0 0 ${maxX * scale + 100} ${maxY * scale + 50}`);
+
+            CITIES.forEach((city, index) => {
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('cx', city[0] * scale + 50);
+                circle.setAttribute('cy', city[1] * scale + 25);
+                circle.setAttribute('r', 5);
+                circle.setAttribute('fill', 'black');
+                svg.appendChild(circle);
+
+                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                text.setAttribute('x', city[0] * scale + 50);
+                text.setAttribute('y', city[1] * scale + 40);
+                text.setAttribute('text-anchor', 'middle');
+                text.textContent = index;
+                svg.appendChild(text);
+            });
+        }
+
+        function drawRoute(route, color, selected = false) {
+            const svg = document.getElementById('map');
+            const maxX = Math.max(...CITIES.map(city => city[0]));
+            const maxY = Math.max(...CITIES.map(city => city[1]));
+            const scale = Math.min(700 / maxX, 350 / maxY);
+
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            let d = `M ${CITIES[route[0]][0] * scale + 50} ${CITIES[route[0]][1] * scale + 25}`;
+            for (let i = 1; i <= route.length; i++) {
+                const city = CITIES[route[i % route.length]];
+                d += ` L ${city[0] * scale + 50} ${city[1] * scale + 25}`;
+            }
+            path.setAttribute('d', d);
+            path.setAttribute('stroke', color);
+            path.setAttribute('fill', 'none');
+            path.setAttribute('stroke-width', selected ? 4 : 2);
+            path.classList.add('route');
+            if (selected) path.classList.add('selected');
+            svg.appendChild(path);
+
+            // Add arrowheads
+            for (let i = 0; i < route.length; i++) {
+                const start = CITIES[route[i]];
+                const end = CITIES[route[(i + 1) % route.length]];
+                const angle = Math.atan2(end[1] - start[1], end[0] - start[0]) * 180 / Math.PI;
+                const arrowhead = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+                arrowhead.setAttribute('points', '0,-5 10,0 0,5');
+                arrowhead.setAttribute('fill', color);
+                arrowhead.setAttribute('transform', `translate(${(end[0] * scale + 50)},${(end[1] * scale + 25)}) rotate(${angle})`);
+                svg.appendChild(arrowhead);
+            }
+        }
+
+        function updateVisualization(generation) {
+            setupMap();
+            const populationData = generations[generation];
+            populationData.forEach((individual, index) => {
+                drawRoute(individual.route, COLORS[index % COLORS.length]);
+            });
+
+            const slider = document.getElementById('generation-slider');
+            slider.value = generation;
+            slider.max = GENERATIONS - 1;
+
+            updateIndividualList(generation);
+        }
+
+        function updateIndividualList(generation) {
+            const listContainer = document.getElementById('individual-items');
+            listContainer.innerHTML = '';
+            const populationData = generations[generation];
+            
+            populationData.forEach((individual, index) => {
+                const item = document.createElement('div');
+                item.className = 'individual-item';
+                item.textContent = `Individual ${index + 1} (Fitness: ${fitness(individual.route).toFixed(4)})`;
+                item.addEventListener('click', () => showRouteDetails(individual, index, generation));
+                listContainer.appendChild(item);
+            });
+        }
+
+        function showRouteDetails(individual, index, generation) {
+            setupMap();
+            drawRoute(individual.route, COLORS[index % COLORS.length], true);
+
+            // Update selected individual in the list
+            const items = document.getElementsByClassName('individual-item');
+            Array.from(items).forEach((item, i) => {
+                item.classList.toggle('selected', i === index);
+            });
+
+            let info = `<h3>Route ${index + 1} Details (Generation ${generation})</h3>`;
+            info += `<p>Route: ${individual.route.join(' -> ')}</p>`;
+            info += `<p>Fitness: ${fitness(individual.route).toFixed(4)}</p>`;
+            
+            if (generation > 0) {
+                info += '<h4>Parents:</h4>';
+                info += `<p>Parent 1: ${individual.parents[0].join(' -> ')}</p>`;
+                info += `<p>Parent 2: ${individual.parents[1].join(' -> ')}</p>`;
+                
+                info += '<h4>Crossover:</h4>';
+                info += `<p>Crossover range: ${individual.crossover.start} to ${individual.crossover.end}</p>`;
+                
+                info += '<h4>Mutation:</h4>';
+                if (individual.mutation) {
+                    info += `<p>Mutation occurred: Swapped cities at positions ${individual.mutation[0]} and ${individual.mutation[1]}</p>`;
+                } else {
+                    info += '<p>No mutation occurred</p>';
+                }
+            }
+
+            document.getElementById('info').innerHTML = info;
+        }
+
+        // Event listeners
+        document.getElementById('generation-slider').addEventListener('input', function() {
+            updateVisualization(parseInt(this.value));
+        });
+
+        document.getElementById('prev-gen').addEventListener('click', function() {
+            const slider = document.getElementById('generation-slider');
+            const newGen = Math.max(0, parseInt(slider.value) - 1);
+            updateVisualization(newGen);
+        });
+
+        document.getElementById('next-gen').addEventListener('click', function() {
+            const slider = document.getElementById('generation-slider');
+            const newGen = Math.min(GENERATIONS - 1, parseInt(slider.value) + 1);
+            updateVisualization(newGen);
+        });
+
+        // Run the GA and initial visualization
+        const generations = geneticAlgorithm();
+        updateVisualization(0);
+    </script>
+</body>
+</html>

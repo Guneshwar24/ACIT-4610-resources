@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Binary GA Visualization with Pop-ups</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; padding: 20px; }
+        .generation { margin-bottom: 20px; }
+        .individual { cursor: pointer; margin: 5px 0; padding: 5px; border: 1px solid #ddd; }
+        .individual:hover { background-color: #f0f0f0; }
+        .popup {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: white;
+            padding: 20px;
+            border: 2px solid #333;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+            z-index: 1000;
+            max-width: 80%;
+            max-height: 80%;
+            overflow-y: auto;
+        }
+        .close-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            cursor: pointer;
+            font-size: 20px;
+        }
+        .highlighted { background-color: yellow; }
+    </style>
+</head>
+<body>
+    <h1>Interactive Binary GA Visualization with Pop-ups</h1>
+    <div id="ga-visualization"></div>
+    <div id="popup" class="popup">
+        <span class="close-btn" onclick="closePopup()">&times;</span>
+        <div id="popup-content"></div>
+    </div>
+
+    <script>
+        // Knapsack problem setup
+        const ITEMS = [[4, 12], [2, 1], [10, 4], [1, 1], [2, 2]];
+        const MAX_WEIGHT = 15;
+
+        // GA parameters
+        const POPULATION_SIZE = 6;
+        const GENERATIONS = 3;
+        const MUTATION_RATE = 0.1;
+
+        // Helper functions
+        function createIndividual() {
+            return Array.from({length: ITEMS.length}, () => Math.random() < 0.5 ? 0 : 1);
+        }
+
+        function fitness(individual) {
+            let totalValue = 0;
+            let totalWeight = 0;
+            for (let i = 0; i < individual.length; i++) {
+                if (individual[i]) {
+                    totalValue += ITEMS[i][0];
+                    totalWeight += ITEMS[i][1];
+                }
+            }
+            return totalWeight <= MAX_WEIGHT ? totalValue : 0;
+        }
+
+        function crossover(parent1, parent2) {
+            const point = Math.floor(Math.random() * parent1.length);
+            const child = [...parent1.slice(0, point), ...parent2.slice(point)];
+            return { child, point };
+        }
+
+        function mutate(individual) {
+            return individual.map(gene => Math.random() < MUTATION_RATE ? 1 - gene : gene);
+        }
+
+        function visualizeIndividual(individual, highlight = -1) {
+            return individual.map((gene, index) => 
+                `<span class="${index === highlight ? 'highlighted' : ''}">${gene ? '█' : '░'}</span>`
+            ).join('');
+        }
+
+        // Main GA function
+        function geneticAlgorithm() {
+            let population = Array.from({length: POPULATION_SIZE}, createIndividual);
+            let generations = [{ individuals: population.map(ind => ({ genes: ind, fitness: fitness(ind) })) }];
+
+            for (let gen = 0; gen < GENERATIONS - 1; gen++) {
+                let newPopulation = [];
+                for (let i = 0; i < POPULATION_SIZE; i += 2) {
+                    let parent1 = generations[gen].individuals[Math.floor(Math.random() * POPULATION_SIZE)];
+                    let parent2 = generations[gen].individuals[Math.floor(Math.random() * POPULATION_SIZE)];
+                    let { child: child1, point: point1 } = crossover(parent1.genes, parent2.genes);
+                    let { child: child2, point: point2 } = crossover(parent2.genes, parent1.genes);
+                    
+                    let mutatedChild1 = mutate(child1);
+                    let mutatedChild2 = mutate(child2);
+
+                    newPopulation.push({
+                        genes: mutatedChild1,
+                        fitness: fitness(mutatedChild1),
+                        parents: [parent1, parent2],
+                        crossoverPoint: point1,
+                        originalChild: child1
+                    });
+                    newPopulation.push({
+                        genes: mutatedChild2,
+                        fitness: fitness(mutatedChild2),
+                        parents: [parent2, parent1],
+                        crossoverPoint: point2,
+                        originalChild: child2
+                    });
+                }
+                generations.push({ individuals: newPopulation });
+            }
+
+            return generations;
+        }
+
+        // Visualization
+        function visualizeGA() {
+            const generations = geneticAlgorithm();
+            const container = document.getElementById('ga-visualization');
+
+            generations.forEach((gen, genIndex) => {
+                const genDiv = document.createElement('div');
+                genDiv.className = 'generation';
+                genDiv.innerHTML = `<h2>Generation ${genIndex}</h2>`;
+
+                gen.individuals.forEach((ind, indIndex) => {
+                    const indDiv = document.createElement('div');
+                    indDiv.className = 'individual';
+                    indDiv.innerHTML = `Individual ${indIndex}: ${visualizeIndividual(ind.genes)} Fitness: ${ind.fitness}`;
+                    
+                    indDiv.addEventListener('click', () => showPopup(ind, genIndex, indIndex));
+
+                    genDiv.appendChild(indDiv);
+                });
+
+                container.appendChild(genDiv);
+            });
+        }
+
+        function showPopup(individual, genIndex, indIndex) {
+            const popup = document.getElementById('popup');
+            const content = document.getElementById('popup-content');
+
+            let html = `<h3>Individual ${indIndex} (Generation ${genIndex})</h3>`;
+            html += `<p>Genes: ${visualizeIndividual(individual.genes)}</p>`;
+            html += `<p>Fitness: ${individual.fitness}</p>`;
+
+            if (genIndex > 0) {
+                html += `<h4>Parents:</h4>`;
+                html += `<p>Parent 1: ${visualizeIndividual(individual.parents[0].genes)} Fitness: ${individual.parents[0].fitness}</p>`;
+                html += `<p>Parent 2: ${visualizeIndividual(individual.parents[1].genes)} Fitness: ${individual.parents[1].fitness}</p>`;
+                html += `<h4>Crossover:</h4>`;
+                html += `<p>Crossover point: ${individual.crossoverPoint}</p>`;
+                html += `<p>After crossover: ${visualizeIndividual(individual.originalChild, individual.crossoverPoint)}</p>`;
+                html += `<h4>Mutation:</h4>`;
+                html += `<p>Final result (after potential mutation): ${visualizeIndividual(individual.genes)}</p>`;
+                
+                // Highlight differences due to mutation
+                const mutations = individual.genes.map((gene, index) => 
+                    gene !== individual.originalChild[index] ? index : -1
+                ).filter(index => index !== -1);
+                
+                if (mutations.length > 0) {
+                    html += `<p>Mutations occurred at position(s): ${mutations.join(', ')}</p>`;
+                } else {
+                    html += `<p>No mutations occurred.</p>`;
+                }
+            }
+
+            content.innerHTML = html;
+            popup.style.display = 'block';
+        }
+
+        function closePopup() {
+            document.getElementById('popup').style.display = 'none';
+        }
+
+        // Run visualization
+        visualizeGA();
+    </script>
+</body>
+</html>

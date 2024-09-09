@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced Real-coded GA Graph Visualization</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; padding: 20px; }
+        #chart-container { width: 80%; height: 400px; margin: 20px auto; }
+        #generation-slider { width: 80%; margin: 20px auto; }
+        #generation-info { text-align: center; margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <h1>Enhanced Real-coded GA Graph Visualization</h1>
+    <div id="chart-container">
+        <canvas id="ga-chart"></canvas>
+    </div>
+    <input type="range" id="generation-slider" min="0" max="0" value="0">
+    <div id="generation-info"></div>
+
+    <script>
+        // GA parameters
+        const POPULATION_SIZE = 20;
+        const GENERATIONS = 50;
+        const MUTATION_RATE = 0.1;
+
+        function createIndividual() {
+            return [Math.random() * 4 - 2, Math.random() * 4 - 2];
+        }
+
+        function fitness(individual) {
+            const [x, y] = individual;
+            return -(x**2 + y**2) + 4;
+        }
+
+        function crossover(parent1, parent2) {
+            const alpha = Math.random();
+            return parent1.map((gene, i) => alpha * gene + (1 - alpha) * parent2[i]);
+        }
+
+        function mutate(individual) {
+            return individual.map(gene => Math.random() < MUTATION_RATE ? gene + (Math.random() * 0.4 - 0.2) : gene);
+        }
+
+        function geneticAlgorithm() {
+            let population = Array.from({ length: POPULATION_SIZE }, createIndividual);
+            let generations = [population];
+
+            for (let gen = 0; gen < GENERATIONS - 1; gen++) {
+                let newPopulation = [];
+                for (let i = 0; i < POPULATION_SIZE; i += 2) {
+                    let parent1 = population[Math.floor(Math.random() * POPULATION_SIZE)];
+                    let parent2 = population[Math.floor(Math.random() * POPULATION_SIZE)];
+                    let child1 = mutate(crossover(parent1, parent2));
+                    let child2 = mutate(crossover(parent2, parent1));
+                    newPopulation.push(child1, child2);
+                }
+                population = newPopulation;
+                generations.push(population);
+            }
+
+            return generations;
+        }
+
+        const generations = geneticAlgorithm();
+
+        // Chart setup
+        const ctx = document.getElementById('ga-chart').getContext('2d');
+        const chart = new Chart(ctx, {
+            type: 'scatter',
+            data: {
+                datasets: [{
+                    label: 'Population',
+                    data: generations[0].map(ind => ({ x: ind[0], y: ind[1] })),
+                    backgroundColor: 'rgba(75, 192, 192, 0.6)'
+                }, {
+                    label: 'Best Individual',
+                    data: [],
+                    backgroundColor: 'rgba(255, 99, 132, 1)',
+                    pointRadius: 8,
+                    pointHoverRadius: 10
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        type: 'linear',
+                        position: 'bottom',
+                        min: -2,
+                        max: 2
+                    },
+                    y: {
+                        min: -2,
+                        max: 2
+                    }
+                },
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const point = context.raw;
+                                const fitnessValue = fitness([point.x, point.y]);
+                                return `(${point.x.toFixed(2)}, ${point.y.toFixed(2)}) Fitness: ${fitnessValue.toFixed(4)}`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // Slider setup
+        const slider = document.getElementById('generation-slider');
+        const generationInfo = document.getElementById('generation-info');
+        slider.max = GENERATIONS - 1;
+
+        function updateChart(generation) {
+            const currentPopulation = generations[generation];
+            const bestIndividual = currentPopulation.reduce((best, current) => 
+                fitness(current) > fitness(best) ? current : best
+            );
+
+            chart.data.datasets[0].data = currentPopulation.map(ind => ({ x: ind[0], y: ind[1] }));
+            chart.data.datasets[1].data = [{ x: bestIndividual[0], y: bestIndividual[1] }];
+            chart.update();
+        }
+
+        function updateGenerationInfo(generation) {
+            const currentPopulation = generations[generation];
+            const bestIndividual = currentPopulation.reduce((best, current) => 
+                fitness(current) > fitness(best) ? current : best
+            );
+            const averageFitness = currentPopulation.reduce((sum, ind) => sum + fitness(ind), 0) / POPULATION_SIZE;
+
+            generationInfo.innerHTML = `
+                Generation: ${generation}<br>
+                Best Individual: (${bestIndividual[0].toFixed(2)}, ${bestIndividual[1].toFixed(2)})<br>
+                Best Fitness: ${fitness(bestIndividual).toFixed(4)}<br>
+                Average Fitness: ${averageFitness.toFixed(4)}
+            `;
+        }
+
+        function updateVisualization(generation) {
+            updateChart(generation);
+            updateGenerationInfo(generation);
+            slider.value = generation;
+        }
+
+        slider.addEventListener('input', function() {
+            const generation = parseInt(this.value);
+            updateVisualization(generation);
+        });
+
+        // Mouse wheel scrolling
+        document.addEventListener('wheel', function(event) {
+            event.preventDefault();
+            const currentGeneration = parseInt(slider.value);
+            const newGeneration = event.deltaY > 0 
+                ? Math.min(currentGeneration + 1, GENERATIONS - 1)
+                : Math.max(currentGeneration - 1, 0);
+            updateVisualization(newGeneration);
+        }, { passive: false });
+
+        // Initial update
+        updateVisualization(0);
+    </script>
+</body>
+</html>
