@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Evolutionary Strategy Visualization</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+        #visualization {
+            width: 1100px;
+            height: 400px;
+            position: relative;
+            border: 1px solid #ccc;
+        }
+        .stage {
+            position: absolute;
+            border: 2px solid gray;
+            width: 150px;
+            height: 200px;
+            text-align: center;
+            transition: background-color 0.3s ease;
+        }
+        .stage.active {
+            background-color: rgba(255, 255, 0, 0.3);
+            border-color: gold;
+        }
+        .stage-title {
+            position: absolute;
+            top: -25px;
+            width: 100%;
+            font-weight: bold;
+        }
+        .individual {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            border: 2px solid black;
+            transition: all 0.5s ease;
+        }
+        .individual-sigma {
+            position: absolute;
+            font-size: 10px;
+            text-align: center;
+            width: 30px;
+            top: -15px;
+            left: -5px;
+        }
+        #info {
+            margin-top: 20px;
+        }
+        #controls {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div id="visualization"></div>
+    <div id="info">
+        <p>Generation: <span id="generation">0</span></p>
+        <p>Current Stage: <span id="current-stage">Population</span></p>
+        <p>Success Rate: <span id="success-rate">0%</span></p>
+    </div>
+    <div id="controls">
+        <label>
+            Selection Method:
+            <select id="selection-method">
+                <option value="(μ, λ)">(μ, λ)</option>
+                <option value="(μ + λ)">(μ + λ)</option>
+            </select>
+        </label>
+        <label>
+            Recombination Method:
+            <select id="recombination-method">
+                <option value="discrete">Discrete</option>
+                <option value="intermediate">Intermediate</option>
+            </select>
+        </label>
+    </div>
+
+    <script>
+        const stages = [
+            { title: "Population", x: 50, y: 50 },
+            { title: "Recombination", x: 250, y: 50 },
+            { title: "Mutation", x: 450, y: 50 },
+            { title: "Evaluation", x: 650, y: 50 },
+            { title: "Selection", x: 850, y: 50 }
+        ];
+
+        let population = [
+            { x: 75, y: 100, color: "red", sigma: 1.0 },
+            { x: 125, y: 100, color: "blue", sigma: 1.0 },
+            { x: 75, y: 200, color: "green", sigma: 1.0 },
+            { x: 125, y: 200, color: "purple", sigma: 1.0 }
+        ];
+
+        let activeStage = 0;
+        let generation = 0;
+        let successRate = 0;
+
+        function initVisualization() {
+            const viz = document.getElementById('visualization');
+            stages.forEach((stage, index) => {
+                const stageEl = document.createElement('div');
+                stageEl.className = 'stage';
+                stageEl.id = `stage-${index}`;
+                stageEl.style.left = `${stage.x}px`;
+                stageEl.style.top = `${stage.y}px`;
+                const titleEl = document.createElement('div');
+                titleEl.className = 'stage-title';
+                titleEl.textContent = stage.title;
+                stageEl.appendChild(titleEl);
+                viz.appendChild(stageEl);
+            });
+            updatePopulation();
+            highlightActiveStage();
+        }
+
+        function updatePopulation() {
+            const viz = document.getElementById('visualization');
+            viz.querySelectorAll('.individual').forEach(el => el.remove());
+            population.forEach(ind => {
+                const indEl = document.createElement('div');
+                indEl.className = 'individual';
+                indEl.style.left = `${ind.x}px`;
+                indEl.style.top = `${ind.y}px`;
+                indEl.style.backgroundColor = ind.color;
+                const sigmaEl = document.createElement('div');
+                sigmaEl.className = 'individual-sigma';
+                sigmaEl.textContent = ind.sigma.toFixed(2);
+                indEl.appendChild(sigmaEl);
+                viz.appendChild(indEl);
+            });
+        }
+
+        function updateInfo() {
+            document.getElementById('generation').textContent = generation;
+            document.getElementById('current-stage').textContent = stages[activeStage].title;
+            document.getElementById('success-rate').textContent = `${(successRate * 100).toFixed(1)}%`;
+        }
+
+        function highlightActiveStage() {
+            document.querySelectorAll('.stage').forEach((el, index) => {
+                el.classList.toggle('active', index === activeStage);
+            });
+        }
+
+        function nextStage() {
+            activeStage = (activeStage + 1) % stages.length;
+            const stageCenter = {
+                x: stages[activeStage].x + 75,
+                y: stages[activeStage].y + 100
+            };
+
+            switch (activeStage) {
+                case 0: // Population
+                    if (generation > 0) {
+                        population = population.map(ind => ({
+                            ...ind,
+                            x: stageCenter.x + (Math.random() - 0.5) * 100,
+                            y: stageCenter.y + (Math.random() - 0.5) * 150
+                        }));
+                    }
+                    break;
+                case 1: // Recombination
+                    // Simplified recombination
+                    population = population.map((ind, i) => 
+                        i % 2 === 0 ? ind : { ...population[i-1], color: ind.color }
+                    );
+                    break;
+                case 2: // Mutation
+                    population = population.map(ind => ({
+                        ...ind,
+                        x: ind.x + ind.sigma * (Math.random() - 0.5) * 50,
+                        y: ind.y + ind.sigma * (Math.random() - 0.5) * 50,
+                        sigma: ind.sigma * Math.exp(0.1 * (Math.random() - 0.5))
+                    }));
+                    break;
+                case 3: // Evaluation
+                    population = population.map(ind => ({
+                        ...ind,
+                        y: stageCenter.y + (Math.random() - 0.5) * 150
+                    }));
+                    break;
+                case 4: // Selection
+                    const sorted = [...population].sort((a, b) => a.y - b.y);
+                    population = sorted.slice(0, 2).concat(sorted.slice(0, 2));
+                    successRate = population.filter(ind => ind.y < stageCenter.y).length / population.length;
+                    generation++;
+                    break;
+            }
+
+            updatePopulation();
+            updateInfo();
+            highlightActiveStage();
+        }
+
+        initVisualization();
+        setInterval(nextStage, 2000);
+    </script>
+</body>
+</html>
