@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pareto Fronts Visualization</title>
+    <script src="https://d3js.org/d3.v5.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; }
+        .axis path, .axis line { fill: none; stroke: #000; shape-rendering: crispEdges; }
+        .dot { stroke: #000; }
+        .legend { font-size: 12px; }
+    </style>
+</head>
+<body>
+    <h2>Pareto Fronts Visualization</h2>
+    <div id="chart"></div>
+
+    <script>
+        // Set up dimensions
+        const margin = {top: 20, right: 20, bottom: 30, left: 40};
+        const width = 600 - margin.left - margin.right;
+        const height = 400 - margin.top - margin.bottom;
+
+        // Create SVG
+        const svg = d3.select("#chart").append("svg")
+            .attr("width", width + margin.left + margin.right)
+            .attr("height", height + margin.top + margin.bottom)
+            .append("g")
+            .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+        // Use the exact data points from our example
+        const data = [
+            {name: "x₁", f1: 9, f2: 25, front: 3},
+            {name: "x₂", f1: 1, f2: 9, front: 1},
+            {name: "x₃", f1: 0, f2: 4, front: 2},
+            {name: "x₄", f1: 1, f2: 1, front: 1},
+            {name: "x₅", f1: 4, f2: 0, front: 1},
+            {name: "x₆", f1: 16, f2: 4, front: 2}
+        ];
+
+        // Set up scales
+        const x = d3.scaleLinear().range([0, width]);
+        const y = d3.scaleLinear().range([height, 0]);
+        const color = d3.scaleOrdinal()
+            .domain([1, 2, 3])
+            .range(["#ff0000", "#00ff00", "#0000ff"]);
+
+        // Set domains
+        x.domain([0, d3.max(data, d => d.f1)]);
+        y.domain([0, d3.max(data, d => d.f2)]);
+
+        // Add x-axis
+        svg.append("g")
+            .attr("class", "x axis")
+            .attr("transform", "translate(0," + height + ")")
+            .call(d3.axisBottom(x))
+            .append("text")
+            .attr("x", width)
+            .attr("y", -6)
+            .style("text-anchor", "end")
+            .text("f₁(x)");
+
+        // Add y-axis
+        svg.append("g")
+            .attr("class", "y axis")
+            .call(d3.axisLeft(y))
+            .append("text")
+            .attr("transform", "rotate(-90)")
+            .attr("y", 6)
+            .attr("dy", ".71em")
+            .style("text-anchor", "end")
+            .text("f₂(x)");
+
+        // Add dots
+        svg.selectAll(".dot")
+            .data(data)
+            .enter().append("circle")
+            .attr("class", "dot")
+            .attr("r", 5)
+            .attr("cx", d => x(d.f1))
+            .attr("cy", d => y(d.f2))
+            .style("fill", d => color(d.front));
+
+        // Add labels
+        svg.selectAll(".label")
+            .data(data)
+            .enter().append("text")
+            .attr("class", "label")
+            .attr("x", d => x(d.f1) + 5)
+            .attr("y", d => y(d.f2) - 5)
+            .text(d => d.name);
+
+        // Add legend
+        const legend = svg.selectAll(".legend")
+            .data(color.domain())
+            .enter().append("g")
+            .attr("class", "legend")
+            .attr("transform", (d, i) => "translate(0," + i * 20 + ")");
+
+        legend.append("rect")
+            .attr("x", width - 18)
+            .attr("width", 18)
+            .attr("height", 18)
+            .style("fill", color);
+
+        legend.append("text")
+            .attr("x", width - 24)
+            .attr("y", 9)
+            .attr("dy", ".35em")
+            .style("text-anchor", "end")
+            .text(d => "Front " + d);
+    </script>
+</body>
+</html>

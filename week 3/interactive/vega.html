@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VEGA Pareto Fronts Animation</title>
+    <script src="https://d3js.org/d3.v5.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; }
+        .axis path, .axis line { fill: none; stroke: #000; shape-rendering: crispEdges; }
+        .dot { stroke: #000; }
+        button { margin: 10px; }
+        .legend { font-size: 12px; }
+    </style>
+</head>
+<body>
+    <h2>VEGA Pareto Fronts Animation</h2>
+    <div id="chart"></div>
+    <button id="nextGen">Next Generation</button>
+    <div id="info"></div>
+
+    <script>
+        const margin = {top: 20, right: 120, bottom: 30, left: 40};
+        const width = 600 - margin.left - margin.right;
+        const height = 400 - margin.top - margin.bottom;
+
+        const svg = d3.select("#chart").append("svg")
+            .attr("width", width + margin.left + margin.right)
+            .attr("height", height + margin.top + margin.bottom)
+            .append("g")
+            .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+        const x = d3.scaleLinear().range([0, width]);
+        const y = d3.scaleLinear().range([height, 0]);
+        const color = d3.scaleOrdinal()
+            .domain(['Front 1', 'Front 2', 'Front 3', 'Front 4+'])
+            .range(['#ff0000', '#00ff00', '#0000ff', '#999999']);
+
+        x.domain([0, 10]);
+        y.domain([0, 10]);
+
+        svg.append("g")
+            .attr("class", "x axis")
+            .attr("transform", "translate(0," + height + ")")
+            .call(d3.axisBottom(x));
+
+        svg.append("g")
+            .attr("class", "y axis")
+            .call(d3.axisLeft(y));
+
+        let generation = 0;
+        let population = [];
+
+        function initializePopulation() {
+            population = [];
+            for (let i = 0; i < 100; i++) {
+                population.push({
+                    x: Math.random() * 10,
+                    y: Math.random() * 10,
+                    front: 0
+                });
+            }
+        }
+
+        function fastNonDominatedSort() {
+            let fronts = [[]];
+            let dominationCounts = new Array(population.length).fill(0);
+            let dominatedSolutions = Array.from({ length: population.length }, () => []);
+
+            for (let i = 0; i < population.length; i++) {
+                for (let j = i + 1; j < population.length; j++) {
+                    if (dominates(population[i], population[j])) {
+                        dominatedSolutions[i].push(j);
+                        dominationCounts[j]++;
+                    } else if (dominates(population[j], population[i])) {
+                        dominatedSolutions[j].push(i);
+                        dominationCounts[i]++;
+                    }
+                }
+                if (dominationCounts[i] === 0) {
+                    population[i].front = 1;
+                    fronts[0].push(i);
+                }
+            }
+
+            let currentFront = 0;
+            while (fronts[currentFront].length > 0) {
+                let nextFront = [];
+                for (let i of fronts[currentFront]) {
+                    for (let j of dominatedSolutions[i]) {
+                        dominationCounts[j]--;
+                        if (dominationCounts[j] === 0) {
+                            population[j].front = currentFront + 2;
+                            nextFront.push(j);
+                        }
+                    }
+                }
+                currentFront++;
+                fronts.push(nextFront);
+            }
+
+            return fronts.slice(0, -1);
+        }
+
+        function dominates(a, b) {
+            return (a.x <= b.x && a.y <= b.y) && (a.x < b.x || a.y < b.y);
+        }
+
+        function vegaSelection() {
+            let selectedForX = [...population].sort((a, b) => a.x - b.x).slice(0, 50);
+            let selectedForY = [...population].sort((a, b) => a.y - b.y).slice(0, 50);
+            let selected = [...new Set([...selectedForX, ...selectedForY])];
+            population = selected;
+        }
+
+        function crossoverAndMutation() {
+            let newPopulation = [];
+            for (let i = 0; i < 100; i++) {
+                let parent1 = population[Math.floor(Math.random() * population.length)];
+                let parent2 = population[Math.floor(Math.random() * population.length)];
+                let child = {
+                    x: (parent1.x + parent2.x) / 2 + (Math.random() - 0.5),
+                    y: (parent1.y + parent2.y) / 2 + (Math.random() - 0.5),
+                    front: 0
+                };
+                child.x = Math.max(0, Math.min(10, child.x));
+                child.y = Math.max(0, Math.min(10, child.y));
+                newPopulation.push(child);
+            }
+            population = newPopulation;
+        }
+
+        function updateVisualization() {
+            fastNonDominatedSort();
+
+            svg.selectAll(".dot").remove();
+
+            svg.selectAll(".dot")
+                .data(population)
+                .enter().append("circle")
+                .attr("class", "dot")
+                .attr("r", 5)
+                .attr("cx", d => x(d.x))
+                .attr("cy", d => y(d.y))
+                .style("fill", d => color(d.front > 3 ? 'Front 4+' : `Front ${d.front}`));
+
+            let frontCounts = population.reduce((acc, cur) => {
+                let frontKey = cur.front > 3 ? 'Front 4+' : `Front ${cur.front}`;
+                acc[frontKey] = (acc[frontKey] || 0) + 1;
+                return acc;
+            }, {});
+
+            d3.select("#info").html(`Generation: ${generation}<br>` +
+                Object.entries(frontCounts).map(([front, count]) => `${front}: ${count}`).join('<br>'));
+
+            // Update legend
+            svg.selectAll(".legend").remove();
+            let legend = svg.selectAll(".legend")
+                .data(color.domain())
+                .enter().append("g")
+                .attr("class", "legend")
+                .attr("transform", (d, i) => "translate(0," + i * 20 + ")");
+
+            legend.append("rect")
+                .attr("x", width + 18)
+                .attr("width", 18)
+                .attr("height", 18)
+                .style("fill", color);
+
+            legend.append("text")
+                .attr("x", width + 44)
+                .attr("y", 9)
+                .attr("dy", ".35em")
+                .style("text-anchor", "start")
+                .text(d => d);
+        }
+
+        function nextGeneration() {
+            generation++;
+            vegaSelection();
+            updateVisualization();
+            crossoverAndMutation();
+        }
+
+        initializePopulation();
+        updateVisualization();
+
+        d3.select("#nextGen").on("click", nextGeneration);
+    </script>
+</body>
+</html>
