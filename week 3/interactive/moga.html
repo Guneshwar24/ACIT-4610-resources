@@ -10,7 +10,6 @@
         .axis path, .axis line { fill: none; stroke: #000; shape-rendering: crispEdges; }
         .dot { stroke: #000; }
         button { margin: 10px; }
-        .legend { font-size: 12px; }
     </style>
 </head>
 <body>
@@ -20,7 +19,7 @@
     <div id="info"></div>
 
     <script>
-        const margin = {top: 20, right: 120, bottom: 30, left: 40};
+        const margin = {top: 20, right: 20, bottom: 30, left: 40};
         const width = 600 - margin.left - margin.right;
         const height = 400 - margin.top - margin.bottom;
 
@@ -32,9 +31,7 @@
 
         const x = d3.scaleLinear().range([0, width]);
         const y = d3.scaleLinear().range([height, 0]);
-        const color = d3.scaleOrdinal()
-            .domain(['Front 1', 'Front 2', 'Front 3', 'Front 4+'])
-            .range(['#ff0000', '#00ff00', '#0000ff', '#999999']);
+        const color = d3.scaleOrdinal(d3.schemeCategory10);
 
         x.domain([0, 10]);
         y.domain([0, 10]);
@@ -167,34 +164,10 @@
                 .attr("r", 5)
                 .attr("cx", d => x(d.x))
                 .attr("cy", d => y(d.y))
-                .style("fill", d => color(d.front > 3 ? 'Front 4+' : `Front ${d.front}`));
+                .style("fill", d => color(d.front));
 
             d3.select("#info").html(`Generation: ${generation}<br>
-                                     Front 1: ${fronts[0].length}<br>
-                                     Front 2: ${fronts[1] ? fronts[1].length : 0}<br>
-                                     Front 3: ${fronts[2] ? fronts[2].length : 0}<br>
-                                     Front 4+: ${population.filter(d => d.front > 3).length}`);
-
-            // Update legend
-            svg.selectAll(".legend").remove();
-            let legend = svg.selectAll(".legend")
-                .data(color.domain())
-                .enter().append("g")
-                .attr("class", "legend")
-                .attr("transform", (d, i) => "translate(0," + i * 20 + ")");
-
-            legend.append("rect")
-                .attr("x", width + 18)
-                .attr("width", 18)
-                .attr("height", 18)
-                .style("fill", color);
-
-            legend.append("text")
-                .attr("x", width + 44)
-                .attr("y", 9)
-                .attr("dy", ".35em")
-                .style("text-anchor", "start")
-                .text(d => d);
+                                     Number of solutions in first front: ${fronts[0].length}`);
         }
 
         function nextGeneration() {

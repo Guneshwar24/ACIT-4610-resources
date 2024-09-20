@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VEGA Pareto Fronts Animation</title>
+    <title>VEGA Algorithm Animation</title>
     <script src="https://d3js.org/d3.v5.min.js"></script>
     <style>
         body { font-family: Arial, sans-serif; }
@@ -14,7 +14,7 @@
     </style>
 </head>
 <body>
-    <h2>VEGA Pareto Fronts Animation</h2>
+    <h2>VEGA Algorithm Animation</h2>
     <div id="chart"></div>
     <button id="nextGen">Next Generation</button>
     <div id="info"></div>
@@ -33,8 +33,8 @@
         const x = d3.scaleLinear().range([0, width]);
         const y = d3.scaleLinear().range([height, 0]);
         const color = d3.scaleOrdinal()
-            .domain(['Front 1', 'Front 2', 'Front 3', 'Front 4+'])
-            .range(['#ff0000', '#00ff00', '#0000ff', '#999999']);
+            .domain(['Not Selected', 'Selected for X', 'Selected for Y', 'Selected for Both'])
+            .range(['#999999', '#ff0000', '#00ff00', '#0000ff']);
 
         x.domain([0, 10]);
         y.domain([0, 10]);
@@ -53,75 +53,43 @@
 
         function initializePopulation() {
             population = [];
-            for (let i = 0; i < 100; i++) {
+            for (let i = 0; i < 20; i++) {
                 population.push({
                     x: Math.random() * 10,
                     y: Math.random() * 10,
-                    front: 0
+                    selectedFor: 'Not Selected'
                 });
             }
         }
 
-        function fastNonDominatedSort() {
-            let fronts = [[]];
-            let dominationCounts = new Array(population.length).fill(0);
-            let dominatedSolutions = Array.from({ length: population.length }, () => []);
-
-            for (let i = 0; i < population.length; i++) {
-                for (let j = i + 1; j < population.length; j++) {
-                    if (dominates(population[i], population[j])) {
-                        dominatedSolutions[i].push(j);
-                        dominationCounts[j]++;
-                    } else if (dominates(population[j], population[i])) {
-                        dominatedSolutions[j].push(i);
-                        dominationCounts[i]++;
-                    }
-                }
-                if (dominationCounts[i] === 0) {
-                    population[i].front = 1;
-                    fronts[0].push(i);
-                }
-            }
-
-            let currentFront = 0;
-            while (fronts[currentFront].length > 0) {
-                let nextFront = [];
-                for (let i of fronts[currentFront]) {
-                    for (let j of dominatedSolutions[i]) {
-                        dominationCounts[j]--;
-                        if (dominationCounts[j] === 0) {
-                            population[j].front = currentFront + 2;
-                            nextFront.push(j);
-                        }
-                    }
-                }
-                currentFront++;
-                fronts.push(nextFront);
-            }
-
-            return fronts.slice(0, -1);
-        }
-
-        function dominates(a, b) {
-            return (a.x <= b.x && a.y <= b.y) && (a.x < b.x || a.y < b.y);
-        }
-
         function vegaSelection() {
-            let selectedForX = [...population].sort((a, b) => a.x - b.x).slice(0, 50);
-            let selectedForY = [...population].sort((a, b) => a.y - b.y).slice(0, 50);
-            let selected = [...new Set([...selectedForX, ...selectedForY])];
-            population = selected;
+            let selectedForX = [...population].sort((a, b) => a.x - b.x).slice(0, 10);
+            let selectedForY = [...population].sort((a, b) => a.y - b.y).slice(0, 10);
+            
+            population.forEach(individual => {
+                let selectedX = selectedForX.includes(individual);
+                let selectedY = selectedForY.includes(individual);
+                if (selectedX && selectedY) {
+                    individual.selectedFor = 'Selected for Both';
+                } else if (selectedX) {
+                    individual.selectedFor = 'Selected for X';
+                } else if (selectedY) {
+                    individual.selectedFor = 'Selected for Y';
+                } else {
+                    individual.selectedFor = 'Not Selected';
+                }
+            });
         }
 
         function crossoverAndMutation() {
             let newPopulation = [];
-            for (let i = 0; i < 100; i++) {
+            for (let i = 0; i < 20; i++) {
                 let parent1 = population[Math.floor(Math.random() * population.length)];
                 let parent2 = population[Math.floor(Math.random() * population.length)];
                 let child = {
                     x: (parent1.x + parent2.x) / 2 + (Math.random() - 0.5),
                     y: (parent1.y + parent2.y) / 2 + (Math.random() - 0.5),
-                    front: 0
+                    selectedFor: 'Not Selected'
                 };
                 child.x = Math.max(0, Math.min(10, child.x));
                 child.y = Math.max(0, Math.min(10, child.y));
@@ -131,8 +99,6 @@
         }
 
         function updateVisualization() {
-            fastNonDominatedSort();
-
             svg.selectAll(".dot").remove();
 
             svg.selectAll(".dot")
@@ -142,16 +108,12 @@
                 .attr("r", 5)
                 .attr("cx", d => x(d.x))
                 .attr("cy", d => y(d.y))
-                .style("fill", d => color(d.front > 3 ? 'Front 4+' : `Front ${d.front}`));
+                .style("fill", d => color(d.selectedFor));
 
-            let frontCounts = population.reduce((acc, cur) => {
-                let frontKey = cur.front > 3 ? 'Front 4+' : `Front ${cur.front}`;
-                acc[frontKey] = (acc[frontKey] || 0) + 1;
-                return acc;
-            }, {});
-
-            d3.select("#info").html(`Generation: ${generation}<br>` +
-                Object.entries(frontCounts).map(([front, count]) => `${front}: ${count}`).join('<br>'));
+            d3.select("#info").html(`Generation: ${generation}<br>
+                                     Selected for X: ${population.filter(d => d.selectedFor === 'Selected for X' || d.selectedFor === 'Selected for Both').length}<br>
+                                     Selected for Y: ${population.filter(d => d.selectedFor === 'Selected for Y' || d.selectedFor === 'Selected for Both').length}<br>
+                                     Selected for Both: ${population.filter(d => d.selectedFor === 'Selected for Both').length}`);
 
             // Update legend
             svg.selectAll(".legend").remove();
